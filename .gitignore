@@ -1,0 +1,10 @@
+# Production sketches and infos
+sketches/
+bases/
+
+# Media folders
+static/imgs/
+static/fonts/
+
+# Sensitive info
+conf.php
