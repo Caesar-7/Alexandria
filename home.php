@@ -8,48 +8,98 @@
 <?php
     require("./conf.php");
 
-    // CONNESSIONE
-    $connection = @ new mysqli($DB_HOST, $DB_USER, $DB_PASSWORD, "Alexandria");
+    // --- CONNESSIONE ---
+    $connection = new mysqli($DB_HOST, $DB_USER, $DB_PASSWORD, "Alexandria");
     if ($connection->connect_error) { die("Errore di connessione al database"); }
 
-    // QUERY
+    // --- QUERY ---
     $query =
     "SELECT id, titolo, autore, editore, pagine, stato_lettura, url_copertina
     FROM libri;";
 
-    $result = @ $connection->query($query);
+    $result = $connection->query($query);
 
     // In caso di errore sulla query
     if ($connection->errno)
     {
-        @ $connection->close();
+        $connection->close();
         die("Errore nell'esecuzione della query");
     }
 
-    // TRASFERIMENTO DATI IN VARIABILI PHP
+    // --- TRASFERIMENTO DATI IN VARIABILI PHP ---
     $da_leggere = array();
     $in_lettura = array();
     $letti = array();
 
     while ($libro = $result->fetch_array())
     {
-        if ($libro["stato_lettura"] == 0)
+        switch ($libro["stato_lettura"])
         {
-            array_push($da_leggere, $libro);
-        }
-        elseif ($libro["stato_lettura"] == 1)
-        {
-            array_push($in_lettura, $libro);
-        }
-        elseif ($libro["stato_lettura"] == 2)
-        {
-            array_push($letti, $libro);
+            case 0: array_push($da_leggere, $libro); break;
+            case 1: array_push($in_lettura, $libro); break;
+            case 2: array_push($letti, $libro); break;
         }
     }
 
     // Libera la memoria e chiude la connessione
     $result->free();
     $connection->close();
+
+    // --- FUNZIONI DI VISUALIZZAZIONE ---
+    function stampa_libro_grande($libro)
+    {
+        $id = $libro["id"];
+        $copertina = $libro["url_copertina"];
+        $titolo = $libro["titolo"];
+        $autore = $libro["autore"];
+        $editore = $libro["editore"];
+        $pagine = $libro["pagine"];
+
+        // Book
+        echo "<div class='flex items-center p-6 bg-slate-400 rounded-xl shadow-xl space-x-6 hover:cursor-pointer' onclick='window.location.replace(\"/view.php/$id\");'>\n";
+
+            // Cover image
+            echo "<img class='rounded-md h-48' src='/static/imgs/covers/$copertina'>\n";
+
+            // Info
+            echo "<div class='flex flex-col text-xl'>\n";
+                echo "<span class='font-bold text-2xl'>$titolo</span>\n";
+                echo "<span>$autore</span>\n";
+                echo "<span>&mdash;</span>\n";
+                echo "<span>$editore</span>\n";
+                echo "<span>$pagine pagine</span>\n";
+            echo "</div>\n";
+
+        echo "</div>\n";
+    }
+
+    function stampa_libro_piccolo($libro)
+    {
+        $id = $libro["id"];
+        $copertina = $libro["url_copertina"];
+        $titolo = $libro["titolo"];
+        $autore = $libro["autore"];
+        $editore = $libro["editore"];
+        $pagine = $libro["pagine"];
+
+        // Book
+        echo "<div class='flex items-center space-x-4 hover:cursor-pointer' onclick='window.location.replace(\"/view.php/$id\");'>\n";
+
+            // Cover image
+            echo "<img class='rounded-md h-12' src='/static/imgs/covers/$copertina'>\n";
+
+            // Info
+            echo "<div class='text-xl space-x-2'>\n";
+                echo "<span class='font-bold text-2xl'>$titolo</span>\n";
+                echo "<span>di $autore</span>\n";
+                echo "<span>-</span>\n";
+                echo "<span>$editore</span>\n";
+                echo "<span>-</span>\n";
+                echo "<span>$pagine pagine</span>\n";
+            echo "</div>\n";
+
+        echo "</div>\n";
+    }
 ?>
 
 <html lang="it">
@@ -61,7 +111,7 @@
         <title>Home - Alexandria</title>
 
         <!-- CSS -->
-        <link rel="stylesheet" href="static/style/main.css">
+        <link rel="stylesheet" href="/static/style/main.css">
 
         <!-- JS -->
         <script src="https://cdn.tailwindcss.com"></script>
@@ -85,25 +135,7 @@
                     }
                     else
                     {
-                        foreach ($in_lettura as $libro)
-                        {
-                            // Book
-                            echo "<div class='flex items-center p-6 bg-slate-400 rounded-xl shadow-xl space-x-6 hover:cursor-pointer' onclick='window.location.href=\"./view.php?id=" . $libro["id"] . "\";'>\n";
-
-                                // Cover image
-                                echo "<img class='rounded-md h-48' src='static/imgs/covers/" . $libro["url_copertina"] . "'>\n";
-
-                                // Info
-                                echo "<div class='flex flex-col text-xl'>\n";
-                                    echo "<span class='font-bold text-2xl'>" . $libro["titolo"] . "</span>\n";
-                                    echo "<span>" . $libro["autore"] . "</span>\n";
-                                    echo "<span>&mdash;</span>\n";
-                                    echo "<span>" . $libro["editore"] . "</span>\n";
-                                    echo "<span>" . $libro["pagine"] . " pagine</span>\n";
-                                echo "</div>\n";
-
-                            echo "</div>\n";
-                        }
+                        foreach ($in_lettura as $libro) { stampa_libro_grande($libro); }
                     }
                 ?>
 
@@ -127,26 +159,7 @@
                     }
                     else
                     {
-                        foreach ($da_leggere as $libro)
-                        {
-                            // Book
-                            echo "<div class='flex items-center space-x-4 hover:cursor-pointer' onclick='window.location.href = \"./view.php?id=" . $libro["id"] . "\";'>\n";
-
-                                // Cover image
-                                echo "<img class='rounded-md h-12' src='static/imgs/covers/" . $libro["url_copertina"] . "'>\n";
-
-                                // Info
-                                echo "<div class='text-xl space-x-2'>\n";
-                                    echo "<span class='font-bold text-2xl'>" . $libro["titolo"] . "</span>\n";
-                                    echo "<span>di " . $libro["autore"] . "</span>\n";
-                                    echo "<span>-</span>\n";
-                                    echo "<span>" . $libro["editore"] . "</span>\n";
-                                    echo "<span>-</span>\n";
-                                    echo "<span>" . $libro["pagine"] . " pagine</span>\n";
-                                echo "</div>\n";
-
-                            echo "</div>\n";
-                        }
+                        foreach ($da_leggere as $libro) { stampa_libro_piccolo($libro); }
                     }
                 ?>
 
@@ -170,26 +183,7 @@
                     }
                     else
                     {
-                        foreach ($letti as $libro)
-                        {
-                            // Book
-                            echo "<div class='flex items-center space-x-4 hover:cursor-pointer' onclick='window.location.href = \"./view.php?id=" . $libro["id"] . "\";'>\n";
-
-                                // Cover image
-                                echo "<img class='rounded-md h-12' src='static/imgs/covers/" . $libro["url_copertina"] . "'>\n";
-
-                                // Info
-                                echo "<div class='text-xl space-x-2'>\n";
-                                    echo "<span class='font-bold text-2xl'>" . $libro["titolo"] . "</span>\n";
-                                    echo "<span>di " . $libro["autore"] . "</span>\n";
-                                    echo "<span>-</span>\n";
-                                    echo "<span>" . $libro["editore"] . "</span>\n";
-                                    echo "<span>-</span>\n";
-                                    echo "<span>" . $libro["pagine"] . " pagine</span>\n";
-                                echo "</div>\n";
-
-                            echo "</div>\n";
-                        }
+                        foreach ($letti as $libro) { stampa_libro_piccolo($libro); }
                     }
                 ?>
 

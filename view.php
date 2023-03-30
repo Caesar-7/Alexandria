@@ -8,31 +8,47 @@
 <?php
     require("./conf.php");
 
-    // CONNESSIONE
-    $connection = @ new mysqli($DB_HOST, $DB_USER, $DB_PASSWORD, "Alexandria");
+    // --- ARRAY ASSOCIATIVI PER LE EMOJI DELLO STATO DI LETTURA ---
+    $status_strings = array(
+        0 => "Da leggere",
+        1 => "In lettura",
+        2 => "Letto"
+    );
+
+    $status_emoji_codes = array(
+        "Da leggere" => "&#x1f534;",
+        "In lettura" => "&#x1f7e1;",
+        "Letto" => "&#x1f7e2;"
+    );
+
+    // --- CONNESSIONE ---
+    $connection = new mysqli($DB_HOST, $DB_USER, $DB_PASSWORD, "Alexandria");
     if ($connection->connect_error) { die("Errore di connessione al database"); }
 
-    // CONTROLLO SU ID
-    $id = $_GET["id"] ?? "";
-
+    // --- CONTROLLO SU ID ---
+    $id = substr($_SERVER['PATH_INFO'], 1);
     if (!is_numeric($id) || $id < 0) { die("L'ID non è formattato correttamente"); }
 
-    // QUERY INFO LIBRO
-    $query =
-    "SELECT url_copertina, titolo, autore, editore, pagine, isbn, stato_lettura, anno_pubblicazione, YEAR(CURDATE()) - anno_pubblicazione, anno_stampa, YEAR(CURDATE()) - anno_stampa, anno_stampa - anno_pubblicazione, lingua_originale, titolo_originale, traduttore, prezzo, ROUND(prezzo / pagine, 2)
-    FROM libri
-    WHERE id = " . $id . ";";
+    // --- QUERY INFO LIBRO ---
+    $info_anagrafiche = "url_copertina, titolo, autore, editore, pagine, isbn, stato_lettura";
+    $info_temporali = "anno_pubblicazione, YEAR(CURDATE()) - anno_pubblicazione, anno_stampa, YEAR(CURDATE()) - anno_stampa, anno_stampa - anno_pubblicazione";
+    $info_traduzione_e_prezzo = "lingua_originale, titolo_originale, traduttore, prezzo, ROUND(prezzo / pagine, 2)";
 
-    $result = @ $connection->query($query);
+    $query =
+    "SELECT $info_anagrafiche, $info_temporali, $info_traduzione_e_prezzo
+    FROM libri
+    WHERE id = $id;";
+
+    $result = $connection->query($query);
 
     // In caso di errore sulla query
     if ($connection->errno)
     {
-        @ $connection->close();
+        $connection->close();
         die("Errore nell'esecuzione della query");
     }
 
-    // TRASFERIMENTO DATI IN VARIABILI PHP
+    // --- TRASFERIMENTO DATI IN VARIABILI PHP ---
     $row = $result->fetch_row();
 
     $url_copertina = $row[0];
@@ -53,45 +69,34 @@
     $prezzo = $row[15];
     $prezzo_pagina = $row[16];
 
-    // QUERY LETTURE LIBRO
+    // --- QUERY LETTURE LIBRO ---
+    $data_inizio = "DATE_FORMAT(letture.data_inizio, '%d/%c/%Y')";
+    $data_fine = "DATE_FORMAT(letture.data_fine, '%d/%c/%Y')";
+    $tempo_lettura = "DATEDIFF(letture.data_fine, letture.data_inizio) + 1";
+    $pagine_giorno = "ROUND(libri.pagine / (DATEDIFF(letture.data_fine, letture.data_inizio) + 1), 2)";
+
     $query =
-    "SELECT DATE_FORMAT(letture.data_inizio, '%d/%c/%Y'), DATE_FORMAT(letture.data_fine, '%d/%c/%Y'), DATEDIFF(letture.data_fine, letture.data_inizio) + 1, (DATEDIFF(letture.data_fine, letture.data_inizio) + 1) / libri.pagine
+    "SELECT $data_inizio, $data_fine, $tempo_lettura, $pagine_giorno
     FROM letture INNER JOIN libri ON letture.id_libro = libri.id
     WHERE id_libro = $id;";
 
-    $result = @ $connection->query($query);
+    $result = $connection->query($query);
 
     // In caso di errore sulla query
     if ($connection->errno)
     {
-        @ $connection->close();
+        $connection->close();
         die("Errore nell'esecuzione della query");
     }
 
-    // TRASFERIMENTO DATI IN VARIABILI PHP
+    // --- TRASFERIMENTO DATI IN VARIABILI PHP ---
     $letture = array();
 
-    while ($lett = $result->fetch_array())
-    {
-        array_push($letture, $lett);
-    }
+    while ($lett = $result->fetch_array()) { array_push($letture, $lett); }
 
     // Libera la memoria e chiude la connessione
     $result->free();
     $connection->close();
-
-    // ARRAY ASSOCIATIVI PER LE EMOJI DELLO STATO DI LETTURA
-    $status_strings = array(
-        0 => "Da leggere",
-        1 => "In lettura",
-        2 => "Letto"
-    );
-
-    $status_emoji_codes = array(
-        "Da leggere" => "&#x1f534;",
-        "In lettura" => "&#x1f7e1;",
-        "Letto" => "&#x1f7e2;"
-    );
 ?>
 
 <html lang="it">
@@ -100,17 +105,17 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-        <?php echo "<title>$titolo - View - Alexandria</title>\n"; ?>
+        <title><?php echo $titolo?> - View - Alexandria</title>
 
         <!-- CSS -->
-        <link rel="stylesheet" href="static/style/main.css">
+        <link rel="stylesheet" href="/static/style/main.css">
 
         <!-- JS -->
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
 
     <body class="p-4 flex flex-col items-center bg-slate-300">
-        <div class="hover:cursor-pointer underline self-start text-lg" onclick="window.location.href='./home.php'">Torna alla home</div>
+        <div class="hover:cursor-pointer underline self-start text-lg" onclick="window.location.replace('/home.php')">Torna alla home</div>
 
 
         <div class="w-max flex flex-col items-center divide-y divide-gray-400">
@@ -119,28 +124,27 @@
             <div class="w-full flex justify-center p-6 space-x-10">
 
                 <!-- Cover image -->
-                <?php echo "<img class='rounded-md h-72' src='static/imgs/covers/$url_copertina'>\n"; ?>
+                <img class='rounded-md h-80' src='/static/imgs/covers/<?php echo $url_copertina?>'>
 
                 <!-- Info -->
                 <div class="flex flex-col text-2xl space-y-2">
+                    
+                    <span class='font-bold text-4xl'><?php echo $titolo?></span>
+                    <span>di <?php echo $autore?></span>
+
+                    <span class='pt-6'><?php echo $editore?></span>
+                    <span><?php echo $pagine?> pagine</span>
+
+                    <span>ISBN: <?php echo ($isbn == NULL) ? "N/A" : $isbn?></span>
+                    <span><?php echo $lingua_originale?></span>
+
                     <?php
-                        echo "<span class='font-bold text-4xl'>$titolo</span>\n";
-                        echo "<span>di $autore</span>\n";
+                        $status = $status_strings[$stato_lettura];
+                        $emoji = $status_emoji_codes[$status_strings[$stato_lettura]];
 
-                        echo "<span class='pt-6'>$editore</span>\n";
-                        echo "<span>$pagine pagine</span>\n";
-
-                        if ($isbn != NULL)
-                        {
-                            echo "<span>ISBN: $isbn</span>\n";
-                        }
-                        else
-                        {
-                            echo "<span>ISBN: N/A</span>\n";
-                        }
-
-                        echo "<span class='pt-6'>" . $status_emoji_codes[$status_strings[$stato_lettura]] . $status_strings[$stato_lettura] . "</span>\n";
+                        echo "<span class='pt-6'>$emoji $status</span>\n";
                     ?>
+
                 </div>
 
             </div>
@@ -171,7 +175,6 @@
                 if ($titolo_originale != NULL)
                 {
                     echo "<div class='w-full flex flex-col items-center p-6 text-2xl space-y-2'>\n";
-                        echo "<span>$lingua_originale</span>\n";
                         echo "<span>\"$titolo_originale\"</span>\n";
                         echo "<span>Traduzione di $traduttore</span>\n";
                     echo "</div>\n";
@@ -196,23 +199,28 @@
 
                         foreach ($letture as $lett)
                         {
+                            $data_inizio = $lett[0];
+                            $data_fine = $lett[1];
+                            $tempo_lettura = $lett[2];
+                            $pagine_giorno = $lett[3];
+
                             echo "<div class='ml-2'>\n";
 
                                 echo "<span class='font-bold'>$num_lettura&deg; lettura:</span>\n";
-                                echo "<span>" . $lett[0] . "</span>\n";
+                                echo "<span>$data_inizio</span>\n";
                                 echo "<span>&RightArrow;</span>\n";
                                 
-                                if ($lett[1] == NULL)
+                                if ($data_fine == NULL)
                                 {
                                     echo "<span>In lettura</span>\n";
                                 }
                                 else
                                 {
-                                    echo "<span>" . $lett[1] . "</span>\n";
+                                    echo "<span>$data_fine</span>\n";
                                     echo "<span>&bullet;</span>\n";
-                                    echo "<span>" . $lett[2] . " giorni</span>\n";
+                                    echo "<span>$tempo_lettura giorni</span>\n";
                                     echo "<span>&bullet;</span>\n";
-                                    echo "<span>" . $lett[3] . " giorni/pagina</span>\n";
+                                    echo "<span>$pagine_giorno pagine/giorno</span>\n";
                                 }
 
                             echo "</div>\n";
