@@ -6,11 +6,11 @@
 <!DOCTYPE html>
 
 <?php
-    require("./conf.php");
+    require_once("./conf.php");
 
     // --- CONNESSIONE ---
     $connection = new mysqli($DB_HOST, $DB_USER, $DB_PASSWORD, "Alexandria");
-    if ($connection->connect_error) { die("Errore di connessione al database"); }
+    if ($connection->connect_error) { die("<h1>Errore di connessione al database</h1>"); }
 
     // --- QUERY ---
     $query =
@@ -23,7 +23,7 @@
     if ($connection->errno)
     {
         $connection->close();
-        die("Errore nell'esecuzione della query");
+        die("<h1>Errore nell'esecuzione della query</h1>");
     }
 
     // --- TRASFERIMENTO DATI IN VARIABILI PHP ---

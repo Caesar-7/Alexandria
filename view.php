@@ -6,7 +6,7 @@
 <!DOCTYPE html>
 
 <?php
-    require("./conf.php");
+    require_once("./conf.php");
 
     // --- ARRAY ASSOCIATIVI PER LE EMOJI DELLO STATO DI LETTURA ---
     $status_strings = array(
@@ -23,30 +23,41 @@
 
     // --- CONNESSIONE ---
     $connection = new mysqli($DB_HOST, $DB_USER, $DB_PASSWORD, "Alexandria");
-    if ($connection->connect_error) { die("Errore di connessione al database"); }
+    if ($connection->connect_error) { die("<h1>Errore di connessione al database</h1>"); }
 
     // --- CONTROLLO SU ID ---
     $id = substr($_SERVER['PATH_INFO'], 1);
-    if (!is_numeric($id) || $id < 0) { die("L'ID non è formattato correttamente"); }
+
+    if (!is_numeric($id) || $id < 0)
+    {
+        die("<h1>L'ID non è formattato correttamente</h1>");
+    }
 
     // --- QUERY INFO LIBRO ---
     $info_anagrafiche = "url_copertina, titolo, autore, editore, pagine, isbn, stato_lettura";
     $info_temporali = "anno_pubblicazione, YEAR(CURDATE()) - anno_pubblicazione, anno_stampa, YEAR(CURDATE()) - anno_stampa, anno_stampa - anno_pubblicazione";
     $info_traduzione_e_prezzo = "lingua_originale, titolo_originale, traduttore, prezzo, ROUND(prezzo / pagine, 2)";
 
-    $query =
-    "SELECT $info_anagrafiche, $info_temporali, $info_traduzione_e_prezzo
-    FROM libri
-    WHERE id = $id;";
+    $statement = $connection->prepare(
+        "SELECT $info_anagrafiche, $info_temporali, $info_traduzione_e_prezzo
+        FROM libri
+        WHERE id = ?;"
+    );
 
-    $result = $connection->query($query);
+    $statement->bind_param("i", $id);
+    $statement->execute();
+
+    $result = $statement->get_result();
+    $statement->close();
 
     // In caso di errore sulla query
     if ($connection->errno)
     {
         $connection->close();
-        die("Errore nell'esecuzione della query");
+        die("<h1>Errore nell'esecuzione della query</h1>");
     }
+
+    if ($result->num_rows == 0) { die("<h1>Nessun libro trovato</h1>"); }
 
     // --- TRASFERIMENTO DATI IN VARIABILI PHP ---
     $row = $result->fetch_row();
@@ -75,12 +86,17 @@
     $tempo_lettura = "DATEDIFF(letture.data_fine, letture.data_inizio) + 1";
     $pagine_giorno = "ROUND(libri.pagine / (DATEDIFF(letture.data_fine, letture.data_inizio) + 1), 2)";
 
-    $query =
-    "SELECT $data_inizio, $data_fine, $tempo_lettura, $pagine_giorno
-    FROM letture INNER JOIN libri ON letture.id_libro = libri.id
-    WHERE id_libro = $id;";
+    $statement = $connection->prepare(
+        "SELECT $data_inizio, $data_fine, $tempo_lettura, $pagine_giorno
+        FROM letture INNER JOIN libri ON letture.id_libro = libri.id
+        WHERE id_libro = ?;"
+    );
 
-    $result = $connection->query($query);
+    $statement->bind_param("i", $id);
+    $statement->execute();
+
+    $result = $statement->get_result();
+    $statement->close();
 
     // In caso di errore sulla query
     if ($connection->errno)
@@ -152,21 +168,19 @@
             <!-- Temporale -->
             <div class="w-full flex flex-col items-center p-6 text-2xl space-y-2">
 
-                <?php
-                    echo "<div>\n";
-                        echo "<span>Pubblicato nel $anno_pubblicazione</span>\n";
-                        echo "<span>-</span>\n";
-                        echo "<span>$distanza_pubblicazione anni fa</span>\n";
-                    echo "</div>\n";
+                <div>
+                    <span>Pubblicato nel <?php echo $anno_pubblicazione?></span>
+                    <span>-</span>
+                    <span><?php echo $distanza_pubblicazione?> anni fa</span>
+                </div>
 
-                    echo "<div>\n";
-                        echo "<span>Stampato nel $anno_stampa</span>\n";
-                        echo "<span>-</span>\n";
-                        echo "<span>$distanza_stampa anni fa</span>\n";
-                    echo "</div>\n";
+                <div>
+                    <span>Stampato nel <?php echo $anno_stampa?></span>
+                    <span>-</span>
+                    <span><?php echo $distanza_stampa?> anni fa</span>
+                </div>
 
-                    echo "<span>La modernità della copia è di $modernita anni</span>\n";
-                ?>
+                <span>La modernità della copia è di <?php echo $modernita?> anni</span>
 
             </div>
 
@@ -183,10 +197,8 @@
 
             <!-- Prezzo -->
             <div class="w-full flex flex-col items-center p-6 text-2xl space-y-2">
-                <?php
-                    echo "<span>$prezzo &euro;</span>\n";
-                    echo "<span>$prezzo_pagina &euro;/pagina</span>\n";
-                ?>
+                <span><?php echo $prezzo?> &euro;</span>
+                <span><?php echo $prezzo_pagina?> &euro;/pagina</span>
             </div>
 
             <?php
